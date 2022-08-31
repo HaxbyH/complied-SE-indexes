@@ -5,12 +5,18 @@
 #include <vector>
 #include <unordered_map>
 #include <algorithm>
+#include <limits>
 
 bool newdoc = false;
-int docnum = 0;
-std::vector<std::string>doc_ids;
 typedef std::vector<std::pair<int32_t, int32_t> > postings;
 std::unordered_map<std::string, postings> vocabulary;
+
+// doc ids
+std::string doc_array[] = {};
+
+int n = sizeof(doc_array) / sizeof(doc_array[0]);
+std::vector<std::string> doc_ids(doc_array, doc_array + n);
+int docnum = doc_ids.size()-1;
 
 /*
    Functions takes in a string and seperates words 
@@ -28,7 +34,7 @@ char to_lowercase(char c)
 
 std::vector<std::string> get_next(std::string line) {
 
-    std::vector<std::string> arr;
+    std::vector<std::string> doc_array;
     std::string delimiter = " ";
     size_t pos = 0;
     std::string token;
@@ -44,7 +50,7 @@ std::vector<std::string> get_next(std::string line) {
             token.erase(std::remove(token.begin(), token.end(), c), token.end());
         }
         if (!token.empty()) {
-            arr.push_back(token);
+            doc_array.push_back(token);
         }
         line.erase(0, pos + delimiter.length());
     }
@@ -55,17 +61,16 @@ std::vector<std::string> get_next(std::string line) {
         line.end());
     }
     if (!line.empty()) {
-        arr.push_back(line);
+        doc_array.push_back(line);
     }
-    return arr;
+    return doc_array;
 
 }
 
 void search(const char** words, int numWords) {
     std::cout << "search selected" << "\n";
-    for (int i = 2; i < numWords; i++) {
-        std::cout << words[i] << "\n";
-        // Do Search things
+    for (std::string x: doc_ids) {
+        std::cout << x << "\n";
     }
 }
 
@@ -107,26 +112,55 @@ void index(const char* input) {
             }
 
             // convert to lowercase
-            for (char &c: token) {
+            for (int i = 0; i < token.size(); i ++) {
+                char &c = token[i];
                 c = to_lowercase(c);
             }
 
-
-            // std::cout << token << "\n";
+            // Adding to unordered map
             postings &currentlist = vocabulary[token];
             if (currentlist.empty() || currentlist[currentlist.size()-1].first != docnum) {
                 currentlist.push_back(std::pair<int32_t, int32_t>(docnum, 1));
             } else {
                 currentlist[currentlist.size()-1].second++;
             }
-
         }
     }
-    // std::cout << vocabulary.size() << std::endl;
-    // for (int i = 0; i < vocabulary.size(); i++) {
-    postings &p = vocabulary["a"];
-    std::cout << p.size() << std::endl;
-    // }
+
+    // print out doc_ids and tf for word
+    postings &p = vocabulary["the"];
+    for (int i = 0; i < p.size(); i++) {
+        std::cout << doc_ids[p[i].first] << ": " << p[i].second << std::endl;
+
+    }
+
+    // put doc_ids in file
+    std::ofstream outfile;
+    outfile.open("output.cpp");
+
+    std::ifstream infile;
+    infile.open("master-se.cpp");
+
+    // adding headers to file
+    for (int i = 0; std::getline(infile,line) && i < 14; i++) {
+        outfile << line << "\n";
+    }
+
+    // addings doc_ids
+    outfile << "std::string doc_array[] = {";
+    for (int i = 0; i < doc_ids.size(); i++) {
+        outfile << "\"" << doc_ids[i] << "\"" << ",\n";
+    }
+    outfile << "};\n\n";
+    
+    outfile << "//Index Here";
+    outfile << "\n";
+    outfile << "//Vocab Here";
+
+    // adding the rest
+    while(std::getline(infile, line)) {
+        outfile << line << "\n";
+    }
     
 }
 
