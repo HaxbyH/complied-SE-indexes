@@ -6,13 +6,29 @@
 #include <unordered_map>
 #include <algorithm>
 #include <limits>
+#include <stdlib.h>
+#include <stdint.h>
 
 bool newdoc = false;
 typedef std::vector<std::pair<int32_t, int32_t> > postings;
 std::unordered_map<std::string, postings> vocabulary;
 
-// doc ids
-std::string doc_array[] = {};
+typedef struct
+	{
+	uint32_t document_id;
+	uint16_t term_frequency;
+	} s_posting;
+
+typedef struct
+	{
+	const char *term;
+	const s_posting *postings_list;
+	uint32_t postings_list_length;
+	} dictionary;
+
+// to be replaced
+const std::string doc_array[] = {};
+const dictionary vocab[] = {};
 
 int n = sizeof(doc_array) / sizeof(doc_array[0]);
 std::vector<std::string> doc_ids(doc_array, doc_array + n);
@@ -68,11 +84,14 @@ std::vector<std::string> get_next(std::string line) {
 }
 
 void search(const char** words, int numWords) {
-    std::cout << "search selected" << "\n";
-    for (std::string x: doc_ids) {
-        std::cout << x << "\n";
+    int16_t accumulator[10] = {};
+    // loop through words
+    for (int i = 2; i < numWords; i++) {
+        std::cout << words[i] << std::endl;
+        // binary search through vocab
     }
 }
+
 
 void index(const char* input) {
     std::ifstream file;
@@ -127,12 +146,14 @@ void index(const char* input) {
         }
     }
 
-    // print out doc_ids and tf for word
-    postings &p = vocabulary["the"];
-    for (int i = 0; i < p.size(); i++) {
-        std::cout << doc_ids[p[i].first] << ": " << p[i].second << std::endl;
+    // sort keys of array
+    std::vector<std::string> keys;
+    keys.reserve (vocabulary.size());
 
+    for (auto& it : vocabulary) {
+        keys.push_back(it.first);
     }
+    std::sort (keys.begin(), keys.end());
 
     // put doc_ids in file
     std::ofstream outfile;
@@ -142,22 +163,41 @@ void index(const char* input) {
     infile.open("master-se.cpp");
 
     // adding headers to file
-    for (int i = 0; std::getline(infile,line) && i < 14; i++) {
+    for (int i = 0; std::getline(infile,line) && i < 29; i++) {
         outfile << line << "\n";
     }
 
     // addings doc_ids
-    outfile << "std::string doc_array[] = {";
+    outfile << "const std::string doc_array[] = {";
     for (int i = 0; i < doc_ids.size(); i++) {
         outfile << "\"" << doc_ids[i] << "\"" << ",\n";
     }
     outfile << "};\n\n";
-    
-    outfile << "//Index Here";
-    outfile << "\n";
-    outfile << "//Vocab Here";
 
+    // adding postings
+    for (int i = 0; i < keys.size(); i++) {
+        postings &single = vocabulary[keys[i]];
+        outfile << "const s_posting " << keys[i] << "[] = {";
+        for (int i = 0; i < single.size(); i++) {
+            outfile << "{" << single[i].first << ", " << single[i].second;
+            if (i != single.size()-1) {
+                outfile << "}, ";
+            }
+        }
+        outfile << "}};\n";
+    }
+
+    outfile << "\n";
+
+    // adding vocabulary
+    outfile << "const dictionary vocab[] = {\n";
+    for (int i = 0; i < keys.size(); i++) {
+        outfile << "\t{\"" << keys[i] << "\", " << keys[i] << ", " << vocabulary[keys[i]].size() << "},\n";
+    }
+    outfile << "};\n";
+    
     // adding the rest
+    std::getline(infile, line);
     while(std::getline(infile, line)) {
         outfile << line << "\n";
     }
