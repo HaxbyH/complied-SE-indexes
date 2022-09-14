@@ -83,15 +83,36 @@ std::vector<std::string> get_next(std::string line) {
 
 }
 
+int vocab_compare(const void *a, const void *b) {
+    dictionary *left = (dictionary *)a;
+    dictionary *right = (dictionary *)b;
+
+    return strcmp(left->term, right->term);
+}
+void process_one_term(int16_t *accumulator, const char *word) {
+    dictionary term;
+    term.term = word;
+
+    dictionary *got = (dictionary *) bsearch(&term, vocab, sizeof(vocab) / sizeof(*vocab), sizeof(*vocab), vocab_compare);
+    if (got != NULL) {
+        for (int i = 0; i < got->postings_list_length; i++) {
+            accumulator[got->postings_list[i].document_id] += got->postings_list[i].term_frequency;
+        }
+    }
+}
+
 void search(const char** words, int numWords) {
     int16_t accumulator[10] = {};
     // loop through words
     for (int i = 2; i < numWords; i++) {
-        std::cout << words[i] << std::endl;
-        // binary search through vocab
+        process_one_term(accumulator, words[i]);
+    }
+    for (int doc = 0; doc < 10; doc++) {
+        if (accumulator[doc] != 0) {
+            std::cout << doc_array[doc] << ": " << accumulator[doc] << std::endl;
+        }
     }
 }
-
 
 void index(const char* input) {
     std::ifstream file;
@@ -177,7 +198,7 @@ void index(const char* input) {
     // adding postings
     for (int i = 0; i < keys.size(); i++) {
         postings &single = vocabulary[keys[i]];
-        outfile << "const s_posting " << keys[i] << "[] = {";
+        outfile << "const s_posting i_" << keys[i] << "[] = {";
         for (int i = 0; i < single.size(); i++) {
             outfile << "{" << single[i].first << ", " << single[i].second;
             if (i != single.size()-1) {
@@ -192,7 +213,7 @@ void index(const char* input) {
     // adding vocabulary
     outfile << "const dictionary vocab[] = {\n";
     for (int i = 0; i < keys.size(); i++) {
-        outfile << "\t{\"" << keys[i] << "\", " << keys[i] << ", " << vocabulary[keys[i]].size() << "},\n";
+        outfile << "\t{\"" << keys[i] << "\", i_" << keys[i] << ", " << vocabulary[keys[i]].size() << "},\n";
     }
     outfile << "};\n";
     
@@ -201,6 +222,9 @@ void index(const char* input) {
     while(std::getline(infile, line)) {
         outfile << line << "\n";
     }
+    file.close();
+    infile.close();
+    outfile.close();
     
 }
 
@@ -227,8 +251,6 @@ int main(int argc, const char *argv[]) {
     // help operation is used
     } else if (strcmp(operation, "help")==0) {
         help();
-
-    /* Possibily add delete*/
 
     // return error message
     } else {
