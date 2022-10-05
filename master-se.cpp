@@ -33,19 +33,29 @@ const dictionary vocab[] = {};
 int n = sizeof(doc_array) / sizeof(doc_array[0]);
 std::vector<std::string> doc_ids(doc_array, doc_array + n);
 int docnum = doc_ids.size()-1;
+bool doctag = false;
 
 /*
    Functions takes in a string and seperates words 
    while removing puncutation 
 */ 
 
-char to_lowercase(char c)
+char to_lowercase(char c) 
 {
     if (c >= 'A' && c <= 'Z') {
         return c + 32;
     }
- 
     return c;
+}
+
+std::string remove_punc(std::string word) {
+    std::string temp = "";
+    for (int i = 0; i < word.size(); i++) {
+        if ((word[i] >= 'a' && word[i] <= 'z') || (word[i] >= 'A' && word[i] <= 'Z')) {
+            temp = temp + word[i];
+        }
+    }
+    return temp;
 }
 
 std::vector<std::string> get_next(std::string line) {
@@ -54,33 +64,57 @@ std::vector<std::string> get_next(std::string line) {
     std::string delimiter = " ";
     size_t pos = 0;
     std::string token;
-    std::string puncutation = "!@#?$%^&*(),.:;'";
 
     // Keep splitting like by " "
     while ((pos = line.find(delimiter)) != std::string::npos) {
         token = line.substr(0, pos);
+        std::string temp = "";
 
-        // Remove puncutation
-        for (int i = 0; i < puncutation.length(); i++) {
-            char c = puncutation.at(i);
-            token.erase(std::remove(token.begin(), token.end(), c), token.end());
-        }
-        if (!token.empty()) {
+        // skip doctags
+        if (token[0] == '<') {
             doc_array.push_back(token);
+            if (token.compare("<DOCNO>")==0) {
+                 doctag = true;
+            }
+        // if last token was <DOCNO>
+        } else if (doctag == true) {
+            doc_array.push_back(token);
+            doctag = false;
+        
+        // remove punc
+        } else {
+            token = remove_punc(token);
+            if (!token.empty()) {
+                doc_array.push_back(token);
+            }
         }
         line.erase(0, pos + delimiter.length());
     }
 
-    // Remove puncutation of remaining string (last token)
-    for (int i = 0; i < puncutation.length(); i++) {
-        line.erase(std::remove(line.begin(), line.end(), puncutation.at(i)), 
-        line.end());
-    }
+    // repeat for rest of line
     if (!line.empty()) {
-        doc_array.push_back(line);
+        // if it's a doctag skip
+        if (line[0] == '<') {
+            doc_array.push_back(line);
+            if (line.compare("<DOCNO>")==0) {
+                doctag = true;
+            }
+
+        // if the last token was <DOCNO>
+        } else if (doctag == true) {
+            doc_array.push_back(line);
+            doctag = false;
+
+        // remove puncuation  
+        } else {
+            token = remove_punc(line);
+            if(!token.empty()) {
+                doc_array.push_back(token);
+            }
+        }
+
     }
     return doc_array;
-
 }
 
 int vocab_compare(const void *a, const void *b) {
@@ -114,6 +148,9 @@ void search(const char** words, int numWords) {
     }
 }
 
+/* ------------------------
+          INDEX
+-------------------------*/
 void index(const char* input) {
     std::ifstream file;
     file.open(input);
@@ -184,7 +221,7 @@ void index(const char* input) {
     infile.open("master-se.cpp");
 
     // adding headers to file
-    for (int i = 0; std::getline(infile,line) && i < 29; i++) {
+    for (int i = 0; std::getline(infile,line) && i < 29; i++) { //starts writing to line 30
         outfile << line << "\n";
     }
 
