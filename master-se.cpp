@@ -11,10 +11,9 @@
 
 // CHANGE VARIABLES
 const size_t NUMDOCS = 200000;
-const char* INDEX_NAME = "./WSJheaders/wsj.small.h";
+const char* INDEX_NAME = "./WSJheaders/wsj.h";
 static double k1 = 0.9;
 static double b = 0.4;
-double average_document_length = 0;
 
 bool newdoc = false;
 typedef std::vector<std::pair<int32_t, int32_t> > postings;
@@ -23,8 +22,7 @@ std::unordered_map<std::string, postings> vocabulary;
 typedef struct
 	{
 	uint32_t document_id;
-    double impact_score;
-	// uint16_t term_frequency;
+    int impact_score;
 	} s_posting;
 
 typedef struct
@@ -36,13 +34,13 @@ typedef struct
 
 typedef struct
     {
-    double rsv_sc;
-    std::string term_id;
+    int rsv_sc;
+    std::string document_id;
     } accumulator;
 
 // if index exists include 
-#if __has_include("WSJheaders/wsj.small.h")
-#include "WSJheaders/wsj.small.h"
+#if __has_include("WSJheaders/wsj.h")
+#include "WSJheaders/wsj.h"
 #else
 #include "emptyindex.h"
 #endif
@@ -97,7 +95,7 @@ std::vector<std::string> get_next(std::string line) {
                  doctag = true;
             }
         // if last token was <DOCNO>
-        } else if (doctag == true) {
+        } else if (doctag == true && token != "") {
             doc_array.push_back(token);
             doctag = false;
         
@@ -223,17 +221,18 @@ void index(const char* input) {
     }
     outfile << "};\n\n";
 
-    // adding postings
-
     // calculate average document length
+    double average_document_length = 0;
     for (int32_t document = 0; document < doc_lengths.size(); document++)
         average_document_length += doc_lengths[document];
     average_document_length /= (double)doc_lengths.size();
 
-
-    for (int q = 0; q < keys.size(); q++) { // go through each key
+    // go through each word finding max and min rsv_score
+    double max_rsv = 0;
+    double min_rsv = 0;
+    for (int q = 0; q < keys.size(); q++) { 
         postings &single = vocabulary[keys[q]];
-        outfile << "const s_posting i_" << keys[q] << "[] = {";
+        // outfile << "const s_posting i_" << keys[q] << "[] = {";
         for (int i = 0; i < single.size(); i++) {
             
             // calculate rsv
@@ -241,15 +240,30 @@ void index(const char* input) {
             int d = single[i].first;
             double idf = log((double)doc_lengths.size()/(double)single.size());
             double rsv_score = idf * ((tf * (k1 + 1)) / (tf + k1 * (1 - b + b * (doc_lengths[i] / average_document_length))));
+            if (rsv_score < min_rsv) {
+                min_rsv = rsv_score;
+            } else if (rsv_score > max_rsv) {
+                max_rsv = rsv_score;
+            }
+        }
+    }
 
-
-            outfile << "{" << single[i].first << ", " << rsv_score;
+    for (int q = 0; q < keys.size(); q++) {
+        postings &single = vocabulary[keys[q]];
+        outfile << "const s_posting i_" << keys[q] << "[] = {"; 
+        for (int i = 0; i < single.size(); i++) {
+            int tf = single[i].second;
+            int d = single[i].first;
+            double idf = log((double)doc_lengths.size()/(double)single.size());
+            double rsv_score = idf * ((tf * (k1 + 1)) / (tf + k1 * (1 - b + b * (doc_lengths[i] / average_document_length))));
+            int impact_score_scaled = (int)(((rsv_score-min_rsv)/max_rsv)*254 + 1);
+            outfile << "{" << single[i].first << ", " << impact_score_scaled;
             if (i != single.size()-1) {
                 outfile << "}, ";
             }
         }
         outfile << "}};\n";
-    }
+    }    
 
     outfile << "\n\n";
 
@@ -293,8 +307,10 @@ void process_one_term(accumulator *acc, const char *word) {
             double is = got->postings_list[i].impact_score;
             int d = got->postings_list[i].document_id;
             acc[d].rsv_sc += is;
-            if (acc[d].term_id != doc_array[d]) {
-                acc[d].term_id = doc_array[d];
+
+            if (acc[d].document_id != doc_array[d]) {
+                // std::cout << doc_array[d];
+                acc[d].document_id = doc_array[d];
             }
         }
     }
@@ -319,7 +335,13 @@ int compare_rsv(const void *a, const void *b) {
 void search(const char** words, int numWords) {
 
     // numbers of documents in collection
-    accumulator acc[NUMDOCS];
+    int documents_in_collection = sizeof(doc_array) / sizeof(std::string);
+    accumulator acc[documents_in_collection];
+    for (int i = 0; i < documents_in_collection; i++) {
+        acc[i].rsv_sc = 0;
+        acc[i].document_id = "";
+    }
+    
 
     // loop through words in query
     for (int i = 2; i < numWords; i++) {
@@ -327,13 +349,18 @@ void search(const char** words, int numWords) {
     }
 
     // sort accumulator by impact score
-    int documents_in_collection = sizeof(doc_array) / sizeof(std::string);
+    // int documents_in_collection = sizeof(doc_array) / sizeof(std::string);
     qsort(acc, documents_in_collection, sizeof(accumulator), compare_rsv);
 
     // print results
-    std::string query_id = "PH_ID";
+    // std::string query_id = "PH_ID";
+    int number_returned = 10;
     for(int i = 0; i < documents_in_collection && acc[i].rsv_sc != 0.0; i++) {
-        std::cout << query_id << " Q0 " << acc[i].term_id << " " << i+1 << " " << acc[i].rsv_sc << " c-search" << std::endl;
+        // std::cout << "Rank: " << i << std::endl;
+        std::cout << acc[i].document_id << " " << " " << acc[i].rsv_sc << std::endl;
+        if (i+1 >= number_returned) {
+            break;
+        }
     };
 
 }
