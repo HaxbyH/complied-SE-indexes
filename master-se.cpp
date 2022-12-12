@@ -10,13 +10,11 @@
 #include <stdint.h>
 
 // CHANGE VARIABLES
-const size_t NUMDOCS = 100;
-const char* INDEX_NAME = "./WSJheaders/testdoco.h";
+const size_t NUMDOCS = 200000;
+const char* INDEX_NAME = "./WSJheaders/wsj.small.h";
 static double k1 = 0.9;
 static double b = 0.4;
-double documents_in_collection;
 double average_document_length = 0;
-
 
 bool newdoc = false;
 typedef std::vector<std::pair<int32_t, int32_t> > postings;
@@ -25,7 +23,8 @@ std::unordered_map<std::string, postings> vocabulary;
 typedef struct
 	{
 	uint32_t document_id;
-	uint16_t term_frequency;
+    double impact_score;
+	// uint16_t term_frequency;
 	} s_posting;
 
 typedef struct
@@ -42,8 +41,8 @@ typedef struct
     } accumulator;
 
 // if index exists include 
-#if __has_include("WSJheaders/testdoco.h")
-#include "WSJheaders/testdoco.h"
+#if __has_include("WSJheaders/wsj.small.h")
+#include "WSJheaders/wsj.small.h"
 #else
 #include "emptyindex.h"
 #endif
@@ -178,7 +177,7 @@ void index(const char* input) {
             // hit end of file
             if (token.compare("</DOC>") == 0) {
                 doc_lengths.push_back(idoclength);
-                // std::cout << idoclength << std::endl;
+
                 idoclength = 0;
             }
 
@@ -225,11 +224,26 @@ void index(const char* input) {
     outfile << "};\n\n";
 
     // adding postings
-    for (int i = 0; i < keys.size(); i++) {
-        postings &single = vocabulary[keys[i]];
-        outfile << "const s_posting i_" << keys[i] << "[] = {";
+
+    // calculate average document length
+    for (int32_t document = 0; document < doc_lengths.size(); document++)
+        average_document_length += doc_lengths[document];
+    average_document_length /= (double)doc_lengths.size();
+
+
+    for (int q = 0; q < keys.size(); q++) { // go through each key
+        postings &single = vocabulary[keys[q]];
+        outfile << "const s_posting i_" << keys[q] << "[] = {";
         for (int i = 0; i < single.size(); i++) {
-            outfile << "{" << single[i].first << ", " << single[i].second;
+            
+            // calculate rsv
+            int tf = single[i].second;
+            int d = single[i].first;
+            double idf = log((double)doc_lengths.size()/(double)single.size());
+            double rsv_score = idf * ((tf * (k1 + 1)) / (tf + k1 * (1 - b + b * (doc_lengths[i] / average_document_length))));
+
+
+            outfile << "{" << single[i].first << ", " << rsv_score;
             if (i != single.size()-1) {
                 outfile << "}, ";
             }
@@ -245,13 +259,6 @@ void index(const char* input) {
         outfile << "\t{\"" << keys[i] << "\", i_" << keys[i] << ", " << vocabulary[keys[i]].size() << "},\n";
     }
     outfile << "};\n\n";
-
-    // adding doc lengths
-    outfile << "const int doclengths[] = {";
-    for (int i = 0; i < doc_lengths.size(); i++) {
-        outfile << doc_lengths[i] << ", ";
-    }
-    outfile << "};\n";
     
     file.close();
     outfile.close();
@@ -277,18 +284,18 @@ void process_one_term(accumulator *acc, const char *word) {
 
     dictionary *got = (dictionary *) bsearch(&term, vocab, sizeof(vocab) / sizeof(*vocab), sizeof(*vocab), vocab_compare);
 
-    // calculate idf
-    int p_length = got->postings_list_length;
-    double idf = log(documents_in_collection / p_length);
-
+    // if word is in dictionary
     if (got != NULL) {
-        for (int i = 0; i < p_length; i++) {
-            int tf = got->postings_list[i].term_frequency;
-            int d = got->postings_list[i].document_id;
-            double rsv_score = idf * ((tf * (k1 + 1)) / (tf + k1 * (1 - b + b * (doclengths[d] / average_document_length))));
-            // std::cout << rsv_score << std::endl;
+        int p_length = got->postings_list_length;
 
-            acc[d].rsv_sc += rsv_score;
+        // go through all postings
+        for (int i = 0; i < p_length; i++) {
+            double is = got->postings_list[i].impact_score;
+            int d = got->postings_list[i].document_id;
+            acc[d].rsv_sc += is;
+            if (acc[d].term_id != doc_array[d]) {
+                acc[d].term_id = doc_array[d];
+            }
         }
     }
 }
@@ -312,30 +319,18 @@ int compare_rsv(const void *a, const void *b) {
 void search(const char** words, int numWords) {
 
     // numbers of documents in collection
-    documents_in_collection = sizeof(doclengths) / sizeof(int32_t);
-
-    // average numbers of documents in collection
-    for (int32_t document = 0; document < documents_in_collection; document++)
-	    average_document_length += doclengths[document];
-    average_document_length /= documents_in_collection;
-
-    // accumulator
     accumulator acc[NUMDOCS];
 
-    // worried about speed here
-    for (int i = 0; i < documents_in_collection; i++) {
-        acc[i].term_id = doc_array[i];
-        acc[i].rsv_sc = 0;
-
-    }
-
-    // // loop through words
+    // loop through words in query
     for (int i = 2; i < numWords; i++) {
         process_one_term(acc, words[i]);
     }
 
+    // sort accumulator by impact score
+    int documents_in_collection = sizeof(doc_array) / sizeof(std::string);
     qsort(acc, documents_in_collection, sizeof(accumulator), compare_rsv);
 
+    // print results
     std::string query_id = "PH_ID";
     for(int i = 0; i < documents_in_collection && acc[i].rsv_sc != 0.0; i++) {
         std::cout << query_id << " Q0 " << acc[i].term_id << " " << i+1 << " " << acc[i].rsv_sc << " c-search" << std::endl;
