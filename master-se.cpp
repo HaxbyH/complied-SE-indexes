@@ -10,10 +10,11 @@
 #include <stdint.h>
 
 // CHANGE VARIABLES
-const size_t NUMDOCS = 200000;
-const char* INDEX_NAME = "./WSJheaders/wsj.h";
+const size_t NUMDOCS = 700000;
+const char* INDEX_NAME = "./WSJheaders/wsj.disk1and2.h";
 static double k1 = 0.9;
 static double b = 0.4;
+// static int topk = 4;
 
 bool newdoc = false;
 typedef std::vector<std::pair<int32_t, int32_t> > postings;
@@ -32,15 +33,9 @@ typedef struct
 	uint32_t postings_list_length;
 	} dictionary;
 
-typedef struct
-    {
-    int rsv_sc;
-    std::string document_id;
-    } accumulator;
-
 // if index exists include 
-#if __has_include("WSJheaders/wsj.h")
-#include "WSJheaders/wsj.h"
+#if __has_include("WSJheaders/wsj.disk1and2.h")
+#include "WSJheaders/wsj.disk1.h"
 #else
 #include "emptyindex.h"
 #endif
@@ -292,7 +287,9 @@ int vocab_compare(const void *a, const void *b) {
 /* -----------------------
      ADD TO ACCUMULATOR
    -----------------------*/
-void process_one_term(accumulator *acc, const char *word) {
+
+// doesn't do anything right now   
+void process_one_term(double rsv[], const char *word, std::vector<int> acc_heap) {
     dictionary term;
     term.term = word;
 
@@ -306,12 +303,23 @@ void process_one_term(accumulator *acc, const char *word) {
         for (int i = 0; i < p_length; i++) {
             double is = got->postings_list[i].impact_score;
             int d = got->postings_list[i].document_id;
-            acc[d].rsv_sc += is;
+            rsv[d] += is;
 
-            if (acc[d].document_id != doc_array[d]) {
-                // std::cout << doc_array[d];
-                acc[d].document_id = doc_array[d];
-            }
+            std::make_heap (acc_heap.begin(),acc_heap.end(), std::greater<int>());
+            acc_heap.push_back(1); std::push_heap (acc_heap.begin(), acc_heap.end());
+            std::cout << acc_heap.front() << std::endl;
+
+
+            // std::vector<int> acc_heap(accumulator, accumulator+sizeof(accumulator)/sizeof(int));
+            // std::make_heap (acc.begin(),acc.end(), std::greater<int>());
+
+            // acc.push_back(rsv);
+            // push_heap(v1.begin(), v1.end());
+
+            // if (acc[d].document_id != doc_array[d]) {
+            //     // std::cout << doc_array[d];
+            //     acc[d].document_id = doc_array[d];
+            // }
         }
     }
 }
@@ -319,13 +327,45 @@ void process_one_term(accumulator *acc, const char *word) {
 /* ----------------------
         COMPARE RSV
 -------------------------*/
-int compare_rsv(const void *a, const void *b) {
-    accumulator *accumulatorA = (accumulator *)a;
-    accumulator *accumulatorB = (accumulator *)b;
-    if (accumulatorA->rsv_sc < accumulatorB->rsv_sc) {
-        return 1;
-    } else {
+// int compare_rsv(const void *a, const void *b) {
+//     accumulator *accumulatorA = (accumulator *)a;
+//     accumulator *accumulatorB = (accumulator *)b;
+//     if (accumulatorA->rsv_sc < accumulatorB->rsv_sc) {
+//         return 1;
+//     } else {
+//         return -1;
+//     }
+// }
+
+int compare_rsvpointer(const int* a, const int* b) { 
+    int a_i = *a;
+    int b_i = *b;
+    if (a_i < b_i) {
         return -1;
+    } else {
+        return 1;
+    }
+}
+
+void insertionSort(int *arr[], int* n, const int topk) {
+
+    int* temp = n;
+    int* j;
+    int i = 0;
+
+    // run through size of acc
+    while (i < topk) {
+        // reached end, place in array
+        if (arr[i]==NULL) {
+            arr[i] = temp;
+            break;
+        // if bigger, place then swap
+        } else if (*arr[i] < *temp) {
+            j = arr[i];
+            arr[i] = temp;
+            temp = j;
+        }
+        i++;
     }
 }
 
@@ -336,33 +376,45 @@ void search(const char** words, int numWords) {
 
     // numbers of documents in collection
     int documents_in_collection = sizeof(doc_array) / sizeof(std::string);
-    accumulator acc[documents_in_collection];
-    for (int i = 0; i < documents_in_collection; i++) {
-        acc[i].rsv_sc = 0;
-        acc[i].document_id = "";
-    }
+    static const int topk = 15;
+    int **accumulator = new int *[topk];
+
+    int *rsv_scores = new int[documents_in_collection];
     
+    int **rsv_pointers = new int *[documents_in_collection];
+    int **rsvp = rsv_pointers;
+    for (int *pointer = rsv_scores; pointer < rsv_scores + documents_in_collection; pointer++)
+	    *rsvp++ = pointer;
 
     // loop through words in query
     for (int i = 2; i < numWords; i++) {
-        process_one_term(acc, words[i]);
+        // process_one_term(rsv_scores, words[i], acc_heap);
+        dictionary term;
+        term.term = words[i];
+
+        dictionary *got = (dictionary *) bsearch(&term, vocab, sizeof(vocab) / sizeof(*vocab), sizeof(*vocab), vocab_compare);
+        int k_i = 0;
+
+         // if word is in dictionary
+        if (got != NULL) {
+            int p_length = got->postings_list_length;
+
+            // go through all postings
+            for (int i = 0; i < p_length; i++) {
+                int is = got->postings_list[i].impact_score;
+                int d = got->postings_list[i].document_id;
+                rsv_scores[d] += is;
+                insertionSort(accumulator, rsv_pointers[d], topk);
+            }
+        }
     }
 
-    // sort accumulator by impact score
-    // int documents_in_collection = sizeof(doc_array) / sizeof(std::string);
-    qsort(acc, documents_in_collection, sizeof(accumulator), compare_rsv);
-
-    // print results
-    // std::string query_id = "PH_ID";
-    int number_returned = 10;
-    for(int i = 0; i < documents_in_collection && acc[i].rsv_sc != 0.0; i++) {
-        // std::cout << "Rank: " << i << std::endl;
-        std::cout << acc[i].document_id << " " << " " << acc[i].rsv_sc << std::endl;
-        if (i+1 >= number_returned) {
-            break;
+    // print out the accumulator
+    for (int i = 0; i < topk; i++) {
+        if (accumulator[i]!=NULL) {
+            std::cout << i << " " << doc_array[accumulator[i] - rsv_scores] << " " <<*accumulator[i] << std::endl;
         }
-    };
-
+    }
 }
 
 /*---------------------
