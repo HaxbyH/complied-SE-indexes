@@ -10,8 +10,8 @@
 #include <stdint.h>
 
 // CHANGE VARIABLES
-const size_t NUMDOCS = 700000;
-const char* INDEX_NAME = "./WSJheaders/wsj.disk1and2.h";
+const size_t NUMDOCS = 700001;
+const char* INDEX_NAME = "../WSJ/testdoco.h";
 static double k1 = 0.9;
 static double b = 0.4;
 // static int topk = 4;
@@ -34,8 +34,8 @@ typedef struct
 	} dictionary;
 
 // if index exists include 
-#if __has_include("WSJheaders/wsj.disk1and2.h")
-#include "WSJheaders/wsj.disk1.h"
+#if __has_include("../WSJ/testdoco.h")
+#include "../WSJ/testdoco.h"
 #else
 #include "emptyindex.h"
 #endif
@@ -250,7 +250,7 @@ void index(const char* input) {
             int tf = single[i].second;
             int d = single[i].first;
             double idf = log((double)doc_lengths.size()/(double)single.size());
-            double rsv_score = idf * ((tf * (k1 + 1)) / (tf + k1 * (1 - b + b * (doc_lengths[i] / average_document_length))));
+            double rsv_score = idf * ((tf * (k1 + 1)) / (tf + k1 * (1 - b + b * (doc_lengths[single[i].first] / average_document_length))));
             int impact_score_scaled = (int)(((rsv_score-min_rsv)/max_rsv)*254 + 1);
             outfile << "{" << single[i].first << ", " << impact_score_scaled;
             if (i != single.size()-1) {
