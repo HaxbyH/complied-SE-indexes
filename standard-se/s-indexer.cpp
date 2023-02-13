@@ -17,7 +17,7 @@ std::vector<int> doc_lengths;
 int docnum = -1;
 
 // File name
-const char* INDEX_FILE_NAME = "./s-indexs/testdoco/";
+const char* INDEX_FILE_NAME = "./s-indexs/wsj1000/";
 
 typedef std::vector<std::pair<int32_t, int32_t> > postings;
 std::unordered_map<std::string, postings> vocabulary;
@@ -217,7 +217,6 @@ void index(const char* input) {
 
     // run through ordered vocabulary
     for (std::string primary_key : keys) {
-        std::cout << "\n" << primary_key << std::endl;
 
         postings &single = vocabulary[primary_key];
         int pointer = postings_file.tellp();
@@ -232,7 +231,6 @@ void index(const char* input) {
             // rsv calculation 
             int tf = single[i].second;
             double idf = log((double)doc_lengths.size()/(double)single.size());
-            std::cout << single[i].first << "- " << doc_lengths[single[i].first] << std::endl;;
             double rsv_score = idf * ((tf * (k1 + 1)) / (tf + k1 * (1 - b + b * (doc_lengths[single[i].first] / average_document_length))));
             int impact_score_scaled = (int)(((rsv_score-min_rsv)/max_rsv)*254 + 1);
 
@@ -248,8 +246,7 @@ void index(const char* input) {
 int main(int argc, const char *argv[]) {
     if (argc == 2) {
         index(argv[1]);
-        }
-        return 0;
+    }
 }
 
 
