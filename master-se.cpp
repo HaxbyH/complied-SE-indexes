@@ -315,7 +315,7 @@ void insertionSort(int *arr[], int* n, const int topk) {
 /* ----------------------
         SEARCH
 -----------------------*/
-void search(const char** words, int numWords) {
+void search(char** words, int numWords) {
 
     // numbers of documents in collection
     int documents_in_collection = sizeof(doc_array) / sizeof(std::string);
@@ -330,8 +330,7 @@ void search(const char** words, int numWords) {
 	    *rsvp++ = pointer;
 
     // loop through words in query
-    for (int i = 2; i < numWords; i++) {
-        // process_one_term(rsv_scores, words[i], acc_heap);
+    for (int i = 0; i < numWords; i++) {
         dictionary term;
         term.term = words[i];
 
@@ -384,7 +383,49 @@ int main(int argc, const char *argv[]) {
 
     // If the input is to be searched for
     } else if (strcmp(operation, "search")==0) {
-        search(argv, argc);
+        
+        // if file ends in txt we are processing more than 1 query
+        char buff[5];
+        memcpy(buff, &argv[2][strlen(argv[2])-4], 4);
+        buff[4] = '\0';
+
+        // if it is a .txt file
+        if (strcmp(buff, ".txt")==0) {
+
+            std::ifstream query_file;
+            query_file.open(argv[2]);
+
+            if (query_file) {
+
+                // get line
+                char line[100];
+                while(query_file.getline(line, 100)) {
+                    
+                    // get line by " "
+                    int words_size = 0;
+                    char* words[10];
+                    char** words_pointer = words;
+                    char* p;
+
+                    // add word to char*[]
+                    p = strtok(line, " ");
+                    while(p != NULL) {
+                        words[words_size++] = p;
+                        p = strtok(NULL, " ");
+                    }
+                    search(words_pointer, words_size);
+                    std::cout << " " << std::endl;
+                }
+            }
+        } else {
+            int i = 0;
+            for(i = 2;i < argc; i++) {
+                argv[i-2] = argv[i];
+            }
+            argc -= std::min(argc, 2);
+            search((char**)argv, argc);
+        }
+        
 
     // return error message
     } else {
