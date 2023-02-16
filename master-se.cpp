@@ -11,10 +11,9 @@
 
 // CHANGE VARIABLES
 const size_t NUMDOCS = 700001;
-const char* INDEX_NAME = "../WSJ/testdoco.h";
+const char* INDEX_NAME = "1000_documents.h";
 static double k1 = 0.9;
 static double b = 0.4;
-// static int topk = 4;
 
 bool newdoc = false;
 typedef std::vector<std::pair<int32_t, int32_t> > postings;
@@ -34,8 +33,8 @@ typedef struct
 	} dictionary;
 
 // if index exists include 
-#if __has_include("../WSJ/testdoco.h")
-#include "../WSJ/testdoco.h"
+#if __has_include("1000_documents.h")
+#include "1000_documents.h"
 #else
 #include "emptyindex.h"
 #endif
@@ -227,14 +226,13 @@ void index(const char* input) {
     double min_rsv = 0;
     for (int q = 0; q < keys.size(); q++) { 
         postings &single = vocabulary[keys[q]];
-        // outfile << "const s_posting i_" << keys[q] << "[] = {";
         for (int i = 0; i < single.size(); i++) {
             
             // calculate rsv
             int tf = single[i].second;
             int d = single[i].first;
             double idf = log((double)doc_lengths.size()/(double)single.size());
-            double rsv_score = idf * ((tf * (k1 + 1)) / (tf + k1 * (1 - b + b * (doc_lengths[i] / average_document_length))));
+            double rsv_score = idf * ((tf * (k1 + 1)) / (tf + k1 * (1 - b + b * (doc_lengths[d] / average_document_length))));
             if (rsv_score < min_rsv) {
                 min_rsv = rsv_score;
             } else if (rsv_score > max_rsv) {
@@ -250,9 +248,9 @@ void index(const char* input) {
             int tf = single[i].second;
             int d = single[i].first;
             double idf = log((double)doc_lengths.size()/(double)single.size());
-            double rsv_score = idf * ((tf * (k1 + 1)) / (tf + k1 * (1 - b + b * (doc_lengths[single[i].first] / average_document_length))));
+            double rsv_score = idf * ((tf * (k1 + 1)) / (tf + k1 * (1 - b + b * (doc_lengths[d] / average_document_length))));
             int impact_score_scaled = (int)(((rsv_score-min_rsv)/max_rsv)*254 + 1);
-            outfile << "{" << single[i].first << ", " << impact_score_scaled;
+            outfile << "{" << d << ", " << impact_score_scaled;
             if (i != single.size()-1) {
                 outfile << "}, ";
             }
@@ -284,70 +282,15 @@ int vocab_compare(const void *a, const void *b) {
     return strcmp(left->term, right->term);
 }
 
-/* -----------------------
-     ADD TO ACCUMULATOR
-   -----------------------*/
+void insertionSort(int *arr[], int* n, const int topk) {
 
-// doesn't do anything right now   
-void process_one_term(double rsv[], const char *word, std::vector<int> acc_heap) {
-    dictionary term;
-    term.term = word;
-
-    dictionary *got = (dictionary *) bsearch(&term, vocab, sizeof(vocab) / sizeof(*vocab), sizeof(*vocab), vocab_compare);
-
-    // if word is in dictionary
-    if (got != NULL) {
-        int p_length = got->postings_list_length;
-
-        // go through all postings
-        for (int i = 0; i < p_length; i++) {
-            double is = got->postings_list[i].impact_score;
-            int d = got->postings_list[i].document_id;
-            rsv[d] += is;
-
-            std::make_heap (acc_heap.begin(),acc_heap.end(), std::greater<int>());
-            acc_heap.push_back(1); std::push_heap (acc_heap.begin(), acc_heap.end());
-            std::cout << acc_heap.front() << std::endl;
-
-
-            // std::vector<int> acc_heap(accumulator, accumulator+sizeof(accumulator)/sizeof(int));
-            // std::make_heap (acc.begin(),acc.end(), std::greater<int>());
-
-            // acc.push_back(rsv);
-            // push_heap(v1.begin(), v1.end());
-
-            // if (acc[d].document_id != doc_array[d]) {
-            //     // std::cout << doc_array[d];
-            //     acc[d].document_id = doc_array[d];
-            // }
+    // check if document is already in acc, if it is take out of accumulator
+    for(size_t i = 0; i < topk; i++) {
+        if(arr[i]==n) {
+            arr[i] = NULL;
+            break;
         }
     }
-}
-
-/* ----------------------
-        COMPARE RSV
--------------------------*/
-// int compare_rsv(const void *a, const void *b) {
-//     accumulator *accumulatorA = (accumulator *)a;
-//     accumulator *accumulatorB = (accumulator *)b;
-//     if (accumulatorA->rsv_sc < accumulatorB->rsv_sc) {
-//         return 1;
-//     } else {
-//         return -1;
-//     }
-// }
-
-int compare_rsvpointer(const int* a, const int* b) { 
-    int a_i = *a;
-    int b_i = *b;
-    if (a_i < b_i) {
-        return -1;
-    } else {
-        return 1;
-    }
-}
-
-void insertionSort(int *arr[], int* n, const int topk) {
 
     int* temp = n;
     int* j;
@@ -393,7 +336,6 @@ void search(const char** words, int numWords) {
         term.term = words[i];
 
         dictionary *got = (dictionary *) bsearch(&term, vocab, sizeof(vocab) / sizeof(*vocab), sizeof(*vocab), vocab_compare);
-        int k_i = 0;
 
          // if word is in dictionary
         if (got != NULL) {
@@ -404,7 +346,15 @@ void search(const char** words, int numWords) {
                 int is = got->postings_list[i].impact_score;
                 int d = got->postings_list[i].document_id;
                 rsv_scores[d] += is;
-                insertionSort(accumulator, rsv_pointers[d], topk);
+
+                // if the lowest score in accumulator is empty, insert
+                if (accumulator[topk-1] == 0) {
+                    insertionSort(accumulator, rsv_pointers[d], topk);
+
+                // if the current score is greater than lowest score in accumulator    
+                } else if (rsv_scores[d] > *accumulator[topk-1]) {
+                    insertionSort(accumulator, rsv_pointers[d], topk);
+                }
             }
         }
     }
