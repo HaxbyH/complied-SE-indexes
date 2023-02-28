@@ -11,7 +11,7 @@
 
 // CHANGE VARIABLES
 const size_t NUMDOCS = 700001;
-const char* INDEX_NAME = "1000_documents.h";
+const char* INDEX_NAME = "/Users/haxby/Desktop/complied-SE-indexes-main/WSJ/WSJHeaders/disk1and2.h";
 static double k1 = 0.9;
 static double b = 0.4;
 
@@ -33,8 +33,8 @@ typedef struct
 	} dictionary;
 
 // if index exists include 
-#if __has_include("1000_documents.h")
-#include "1000_documents.h"
+#if __has_include("/Users/haxby/Desktop/complied-SE-indexes-main/WSJ/WSJHeaders/disk1and2.h")
+#include "/Users/haxby/Desktop/complied-SE-indexes-main/WSJ/WSJHeaders/disk1and2.h"
 #else
 #include "emptyindex.h"
 #endif
@@ -391,30 +391,43 @@ int main(int argc, const char *argv[]) {
 
         // if it is a .txt file
         if (strcmp(buff, ".txt")==0) {
+            clock_t now;
+            for (int iteration = 0; iteration < 2; iteration++) {
+                if (iteration == 1) {
+                    std::cout << "clock_started" << std::endl;
+                    now = clock(); 
+                }
+            
 
-            std::ifstream query_file;
-            query_file.open(argv[2]);
+                std::ifstream query_file;
+                query_file.open(argv[2]);
 
-            if (query_file) {
+                if (query_file) {
 
-                // get line
-                char line[100];
-                while(query_file.getline(line, 100)) {
-                    
-                    // get line by " "
-                    int words_size = 0;
-                    char* words[10];
-                    char** words_pointer = words;
-                    char* p;
+                    // get line
+                    char line[100];
+                    while(query_file.getline(line, 100)) {
+                        
+                        // get line by " "
+                        int words_size = 0;
+                        char* words[10];
+                        char** words_pointer = words;
+                        char* p;
 
-                    // add word to char*[]
-                    p = strtok(line, " ");
-                    while(p != NULL) {
-                        words[words_size++] = p;
-                        p = strtok(NULL, " ");
+                        // add word to char*[]
+                        p = strtok(line, " ");
+                        while(p != NULL) {
+                            words[words_size++] = p;
+                            p = strtok(NULL, " ");
+                        }
+                        search(words_pointer, words_size);
+                        std::cout << " " << std::endl;
                     }
-                    search(words_pointer, words_size);
-                    std::cout << " " << std::endl;
+                }
+
+                if (iteration == 1) {
+                    now = clock() - now;
+                    std::cout << "time taken (secs): " << (float)now/CLOCKS_PER_SEC << std::endl;
                 }
             }
         } else {
@@ -426,7 +439,6 @@ int main(int argc, const char *argv[]) {
             search((char**)argv, argc);
         }
         
-
     // return error message
     } else {
         std::cout << "ERROR" << std::endl;
