@@ -15,7 +15,7 @@ struct dictionary {
     int size;
 };
 
-const char* INDEX_FILE_NAME = "/Users/haxby/Desktop/complied-SE-indexes-main/standard-se/s-indexs/disk1and2/";
+const char* INDEX_FILE_NAME = "/Users/haxby/Desktop/complied-SE-indexes-main/standard-se/s-indexs/testdoco/";
 
 // loaded on start up
 std::vector<dictionary> vocab;
@@ -223,6 +223,7 @@ int main(int argc, const char *argv[]) {
         }
     } else {
         search((char**)argv, argc);
+        std::cout << " " << std::endl;
         clock_t now = clock();
         search((char**)argv, argc);
         now = clock() - now; 
