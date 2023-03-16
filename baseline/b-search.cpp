@@ -4,8 +4,11 @@
 #include <fstream>
 #include <vector>
 #include <string.h>
+#include <sys/mman.h>
 #include <sstream>
 #include <ctime>
+#include <fcntl.h>
+#include <sys/stat.h>
 
 // place postings in s_posting struct
 
@@ -15,12 +18,13 @@ struct dictionary {
     int size;
 };
 
-const char* INDEX_FILE_NAME = "/Users/haxby/Desktop/complied-SE-indexes-main/standard-se/s-indexs/testdoco/";
+const char* INDEX_FILE_NAME = "/Users/haxby/Desktop/complied-SE-indexes-main/standard-se/s-indexs/disk1and2/";
 
 // loaded on start up
 std::vector<dictionary> vocab;
 std::vector<std::string> doc_ids;
 std::ifstream postings_file;
+int * postings;
 
 int vocab_compare(const void *a, const void *b) {
     dictionary *left = (dictionary *)a;
@@ -89,14 +93,22 @@ void search(char** words, int numWords) {
         // if word is in dictionary
         if (got != NULL) {
             postings_file.seekg(got->position);
+            int s_index = got->position/sizeof(int32_t);
+            int s_size = got->size/sizeof(int32_t);
+            // std::cout << s_index << " " << s_size << std::endl;
 
-            for (int i = 0; i < got->size/sizeof(int32_t)/2; i++) {
-                // std::cout << "i" << std::endl;
+            // std::cout << got->position/sizeof(int32_t) << std::endl;
+
+            
+            for (int i = s_index; i < s_size + s_index; i = i + 2) {
+                // std::cout << i << std::endl;
 
                 int32_t document_id, impact_score;
-                
-                postings_file.read((char*)&document_id,sizeof(int32_t));
-                postings_file.read((char*)&impact_score,sizeof(int32_t));
+                // postings_file.read((char*)&document_id,sizeof(int32_t));
+                // postings_file.read((char*)&impact_score,sizeof(int32_t));
+                document_id = postings[i];
+                impact_score = postings[i+1];
+                // std::cout << "id: " << document_id << " i_s: " << impact_score << std::endl;
                 
                 rsv_scores[document_id] += impact_score;
 
@@ -172,8 +184,30 @@ int main(int argc, const char *argv[]) {
     }
 
     // open postings file
-    postings_file.open(INDEX_FILE_NAME + postings_name, std::ios::binary);
+    std::string str_name = INDEX_FILE_NAME + postings_name;
+    const char *c = str_name.c_str();
 
+    // open to mmap
+    int fd = open(c, O_RDONLY, S_IWUSR | S_IWUSR);
+
+    struct stat sb;
+
+    if (fstat(fd, &sb) == -1) {
+        std::cout << "couldn't get file size" << std::endl;
+    }
+
+    // printf("file size is %lld\n", sb.st_size);
+
+    postings = (int*)mmap(NULL, sb.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
+
+    // std::cout << ptr[6] << std::endl;
+
+    // std::cout << postings[0] << " " << postings[1] << std::endl;
+    // std::cout << postings[2] << " " << postings[3] << std::endl;
+    // std::cout << postings[4] << " " << postings[5] << std::endl;
+
+    postings_file.open(INDEX_FILE_NAME + postings_name, std::ios::binary);
+    // return 0;
     // check if command line is a file
 
     // if file ends in txt we are processing more than 1 query
