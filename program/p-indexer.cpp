@@ -247,7 +247,7 @@ void index(const char* input) {
         includes_file << "#include \"u_terms/" << primary_key <<"_h.h\"\n";
 
         // add to vocab
-        vocab_file << "\t{\"" << primary_key << "\", f_" << primary_key << "()},\n"; 
+        vocab_file << "\t{\"" << primary_key << "\", &f_" << primary_key << "},\n"; 
 
         // add to functions file
         function_file << "void f_" + primary_key + "() {\n";
@@ -274,7 +274,7 @@ void index(const char* input) {
                 postings_file << "void " << primary_key << "_" << single_postings[i].second << "() {\n";
             } 
 
-            postings_file << "\taccumulator[" << single_postings[i].first << "] + " << single_postings[i].second << ";\n";
+            postings_file << "\trsv_scores[" << single_postings[i].first << "] += " << single_postings[i].second << ";\n";
 
             // if (single_postings[i].second != past_impact) {
             //     postings_file << "}\n";
