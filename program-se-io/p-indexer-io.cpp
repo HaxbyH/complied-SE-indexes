@@ -18,7 +18,7 @@ std::vector<int> doc_lengths;
 int docnum = -1;
 
 // File name
-std::string INDEX_FILE_NAME = "./indexs/wsj.small/";
+std::string INDEX_FILE_NAME = "./indexs/testdoco/";
 std::string uterms_name = "/u_terms";
 
 typedef std::vector<std::pair<int32_t, int32_t> > postings;
