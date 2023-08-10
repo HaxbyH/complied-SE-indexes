@@ -11,5 +11,6 @@ The core idea of the static search engine is to compile the postings as constant
 The program search engine is unwinding the loop performed when processing a postings list. This loop is being unwound by explicitly writing operations that must be done to the scores array for each term in the vocabulary. Just as the static search engine moves data from being placed on the heap intothe data segment of the program’s memory, the program search engine is moving data into the code segment of the program’s memory. To create the source code for the program search engine, the indexer writes an individual function for every term in the vocabulary. These functions hold the exact values that will be added to the scores array, and will add to the scores array if the function is called.
 
 ## Document Ordered and Impact Ordered
+All types of search engines are made with both document ordered and impacted ordered approaches, these are indicated by io and do. 
 
 
